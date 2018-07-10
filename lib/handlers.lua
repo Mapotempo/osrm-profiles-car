@@ -372,8 +372,20 @@ function Handlers.handle_penalties(way,result,data,profile)
     sideroad_penalty = profile.side_road_multiplier
   end
 
-  local forward_penalty = math.min(service_penalty, width_penalty, alternating_penalty, sideroad_penalty)
-  local backward_penalty = math.min(service_penalty, width_penalty, alternating_penalty, sideroad_penalty)
+  local speed_forward_penality = 1.0
+  local speed_backward_penality = 1.0
+  if properties.weight_name == 'distance-routability' then
+    if result.forward_speed < 130 then
+      speed_forward_penality = result.forward_speed / 130 * 0.4 + 0.6
+    end
+
+    if result.backward_speed < 130 then
+      speed_backward_penality = result.backward_speed / 130 * 0.4 + 0.6
+    end
+  end
+
+  local forward_penalty = math.min(service_penalty, width_penalty, alternating_penalty, sideroad_penalty, speed_forward_penality)
+  local backward_penalty = math.min(service_penalty, width_penalty, alternating_penalty, sideroad_penalty, speed_backward_penality)
 
   if properties.weight_name == 'routability' then
     if result.forward_speed > 0 then
@@ -381,6 +393,18 @@ function Handlers.handle_penalties(way,result,data,profile)
     end
     if result.backward_speed > 0 then
       result.backward_rate = (result.backward_speed * backward_penalty) / 3.6
+    end
+    if result.duration > 0 then
+      result.weight = result.duration / forward_penalty
+    end
+  end
+
+  if properties.weight_name == 'distance-routability' then
+    if result.forward_speed > 0 then
+      result.forward_rate = forward_penalty
+    end
+    if result.backward_speed > 0 then
+      result.backward_rate = backward_penalty
     end
     if result.duration > 0 then
       result.weight = result.duration / forward_penalty

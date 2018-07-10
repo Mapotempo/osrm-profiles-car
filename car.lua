@@ -17,11 +17,12 @@ properties.use_turn_restrictions                = true
 properties.continue_straight_at_waypoint        = true
 properties.left_hand_driving                    = false
 -- For routing based on duration, but weighted for preferring certain roads
-properties.weight_name                          = 'routability'
+--properties.weight_name                          = 'routability'
 -- For shortest duration without penalties for accessibility
 --properties.weight_name                        = 'duration'
 -- For shortest distance without penalties for accessibility
 --properties.weight_name                        = 'distance'
+properties.weight_name                          = 'distance-routability'
 
 -- Set to true if you need to call the node_function for every node.
 -- Generally can be left as false to avoid unnecessary Lua calls
@@ -656,7 +657,7 @@ function turn_function (turn)
   end
 
   -- for distance based routing we don't want to have penalties based on turn angle
-  if properties.weight_name == 'distance' then
+  if properties.weight_name == 'distance' or properties.weight_name == 'distance-routability' then
      turn.weight = 0
   else
      turn.weight = turn.duration
