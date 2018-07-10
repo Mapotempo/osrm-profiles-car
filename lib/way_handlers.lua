@@ -306,37 +306,46 @@ end
 
 -- add class information
 function WayHandlers.classes(profile,way,result,data)
+    if not profile.classes then
+        return
+    end
+
+    local allowed_classes = Set {}
+    for k, v in pairs(profile.classes) do
+        allowed_classes[v] = true
+    end
+
     local forward_toll, backward_toll = Tags.get_forward_backward_by_key(way, data, "toll")
     local forward_route, backward_route = Tags.get_forward_backward_by_key(way, data, "route")
     local tunnel = way:get_value_by_key("tunnel")
 
-    if tunnel and tunnel ~= "no" then
+    if allowed_classes["tunnel"] and tunnel and tunnel ~= "no" then
       result.forward_classes["tunnel"] = true
       result.backward_classes["tunnel"] = true
     end
 
-    if forward_toll == "yes" then
+    if allowed_classes["toll"] and forward_toll == "yes" then
         result.forward_classes["toll"] = true
     end
-    if backward_toll == "yes" then
+    if allowed_classes["toll"] and backward_toll == "yes" then
         result.backward_classes["toll"] = true
     end
 
-    if forward_route == "ferry" then
+    if allowed_classes["ferry"] and forward_route == "ferry" then
         result.forward_classes["ferry"] = true
     end
-    if backward_route == "ferry" then
+    if allowed_classes["ferry"] and backward_route == "ferry" then
         result.backward_classes["ferry"] = true
     end
 
-    if result.forward_restricted then
+    if allowed_classes["restricted"] and result.forward_restricted then
         result.forward_classes["restricted"] = true
     end
-    if result.backward_restricted then
+    if allowed_classes["restricted"] and result.backward_restricted then
         result.backward_classes["restricted"] = true
     end
 
-    if data.highway == "motorway" or data.highway == "motorway_link" then
+    if allowed_classes["motorway"] and (data.highway == "motorway" or data.highway == "motorway_link") then
         result.forward_classes["motorway"] = true
         result.backward_classes["motorway"] = true
     end
@@ -423,7 +432,7 @@ end
 
 -- maxspeed and advisory maxspeed
 function WayHandlers.maxspeed(profile,way,result,data)
-  local keys = Sequence { 'maxspeed:advisory', 'maxspeed' }
+  local keys = Sequence {  'maxspeed:advisory', 'maxspeed', 'source:maxspeed', 'maxspeed:type' }
   local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
   forward = WayHandlers.parse_maxspeed(forward,profile)
   backward = WayHandlers.parse_maxspeed(backward,profile)
@@ -435,18 +444,26 @@ function WayHandlers.maxspeed(profile,way,result,data)
   if backward and backward > 0 then
     result.backward_speed = profile.maxspeeds(way, backward)
   end
+
+  if way:get_value_by_key("junction") == "roundabout" then
+    result.forward_speed = forward / 2
+    if result.forward_speed > 30 or result.forward_speed <= 0 then
+      result.forward_speed = 30
+    end
+    result.backward_speed = backward / 2
+    if result.backward_speed > 30 or result.backward_speed <= 0 then
+      result.backward_speed = 30
+    end
+  end
 end
 
 function WayHandlers.parse_maxspeed(source,profile)
   if not source then
     return 0
   end
-  local n = tonumber(source:match("%d*"))
-  if n then
-    if string.match(source, "mph") or string.match(source, "mp/h") then
-      n = (n*1609)/1000
-    end
-  else
+
+  local n = Measure.get_max_speed(source)
+  if not n then
     -- parse maxspeed like FR:urban
     source = string.lower(source)
     n = profile.maxspeed_table[source]
@@ -499,6 +516,38 @@ function WayHandlers.handle_width(profile,way,result,data)
     if backward and backward <= profile.vehicle_width then
       result.backward_mode = mode.inaccessible
     end
+  end
+end
+
+-- handle maxweight tags
+function WayHandlers.handle_weight(profile,way,result,data)
+  local keys = Sequence { 'maxweight' }
+  local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
+  forward = Measure.get_max_weight(forward)
+  backward = Measure.get_max_weight(backward)
+
+  if forward and forward < profile.vehicle_weight then
+    result.forward_mode = mode.inaccessible
+  end
+
+  if backward and backward < profile.vehicle_weight then
+    result.backward_mode = mode.inaccessible
+  end
+end
+
+-- handle maxlength tags
+function WayHandlers.handle_length(profile,way,result,data)
+  local keys = Sequence { 'maxlength' }
+  local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
+  forward = Measure.get_max_length(forward)
+  backward = Measure.get_max_length(backward)
+
+  if forward and forward < profile.vehicle_length then
+    result.forward_mode = mode.inaccessible
+  end
+
+  if backward and backward < profile.vehicle_length then
+    result.backward_mode = mode.inaccessible
   end
 end
 
