@@ -19,7 +19,7 @@ function Ferries_withlist.load(file)
 end
 
 function Ferries_withlist.ferries_withlist(profile,way,result,data)
-  if data.route then
+  if data.route == 'ferry' then
     if ferries_withlist_ids[way:id()] then
       WayHandlers.ferries(profile,way,result,data)
     else

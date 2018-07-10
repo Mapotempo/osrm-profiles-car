@@ -8,6 +8,7 @@ local get_turn_lanes = require("lib/guidance").get_turn_lanes
 local set_classification = require("lib/guidance").set_classification
 local get_destination = require("lib/destination").get_destination
 local Tags = require('lib/tags')
+local Measure = require("lib/measure")
 
 WayHandlers = {}
 
@@ -79,6 +80,13 @@ function WayHandlers.startpoint(profile,way,result,data)
   else
     result.is_startpoint = result.forward_mode == profile.default_mode or
                            result.backward_mode == profile.default_mode
+  end
+  -- highway=service and access tags check
+  local is_service = data.highway == "service"
+  if is_service then
+    if profile.service_access_tag_blacklist[data.forward_access] then
+      result.is_startpoint = false
+    end
   end
 end
 
@@ -213,12 +221,29 @@ function WayHandlers.hov(profile,way,result,data)
   end
 end
 
+
+-- set highway and access classification by user preference
+function WayHandlers.way_classification_for_turn(profile,way,result,data)
+  local highway = way:get_value_by_key("highway")
+  local access = way:get_value_by_key("access")
+
+  if highway and profile.highway_turn_classification[highway] then
+    assert(profile.highway_turn_classification[highway] < 16, "highway_turn_classification must be smaller than 16")
+    result.highway_turn_classification = profile.highway_turn_classification[highway]
+  end
+  if access and profile.access_turn_classification[access] then
+    assert(profile.access_turn_classification[access] < 16, "access_turn_classification must be smaller than 16")
+    result.access_turn_classification = profile.access_turn_classification[access]
+  end
+end
+
+
 -- check accessibility by traversing our access tag hierarchy
 function WayHandlers.access(profile,way,result,data)
   data.forward_access, data.backward_access =
     Tags.get_forward_backward_by_set(way,data,profile.access_tags_hierarchy)
 
-  -- only allow a subset of roads that are marked as restricted
+  -- only allow a subset of roads to be treated as restricted
   if profile.restricted_highway_whitelist[data.highway] then
       if profile.restricted_access_tag_list[data.forward_access] then
           result.forward_restricted = true
@@ -229,6 +254,7 @@ function WayHandlers.access(profile,way,result,data)
       end
   end
 
+  -- blacklist access tags that aren't marked as restricted
   if profile.access_tag_blacklist[data.forward_access] and not result.forward_restricted then
     result.forward_mode = mode.inaccessible
   end
@@ -280,62 +306,49 @@ end
 
 -- add class information
 function WayHandlers.classes(profile,way,result,data)
+    if not profile.classes then
+        return
+    end
+
+    local allowed_classes = Set {}
+    for k, v in pairs(profile.classes) do
+        allowed_classes[v] = true
+    end
+
     local forward_toll, backward_toll = Tags.get_forward_backward_by_key(way, data, "toll")
     local forward_route, backward_route = Tags.get_forward_backward_by_key(way, data, "route")
+    local tunnel = way:get_value_by_key("tunnel")
 
-    if forward_toll == "yes" then
+    if allowed_classes["tunnel"] and tunnel and tunnel ~= "no" then
+      result.forward_classes["tunnel"] = true
+      result.backward_classes["tunnel"] = true
+    end
+
+    if allowed_classes["toll"] and forward_toll == "yes" then
         result.forward_classes["toll"] = true
     end
-    if backward_toll == "yes" then
+    if allowed_classes["toll"] and backward_toll == "yes" then
         result.backward_classes["toll"] = true
     end
 
---    if forward_route == "ferry" then
---        result.forward_classes["ferry"] = true
---    end
---    if backward_route == "ferry" then
---        result.backward_classes["ferry"] = true
---    end
+    if allowed_classes["ferry"] and forward_route == "ferry" then
+        result.forward_classes["ferry"] = true
+    end
+    if allowed_classes["ferry"] and backward_route == "ferry" then
+        result.backward_classes["ferry"] = true
+    end
 
---    if result.forward_restricted then
---        result.forward_classes["restricted"] = true
---    end
---    if result.backward_restricted then
---        result.backward_classes["restricted"] = true
---    end
+    if allowed_classes["restricted"] and result.forward_restricted then
+        result.forward_classes["restricted"] = true
+    end
+    if allowed_classes["restricted"] and result.backward_restricted then
+        result.backward_classes["restricted"] = true
+    end
 
-    if data.highway == "motorway" or data.highway == "motorway_link" then
+    if allowed_classes["motorway"] and (data.highway == "motorway" or data.highway == "motorway_link") then
         result.forward_classes["motorway"] = true
         result.backward_classes["motorway"] = true
     end
-
-    if data.highway == "track" then
-        result.forward_classes["track"] = true
-        result.backward_classes["track"] = true
-    end
-
---    local map = Sequence {
---      motorway        = {false, false, false},
---      motorway_link   = {false, false, false}, -- same
---      trunk           = {false, false, true},
---      trunk_link      = {false, false, true}, -- same
---      primary         = {false, true, false},
---      primary_link    = {false, true, false}, -- same
---      secondary       = {false, true, true},
---      tertiary        = {true, false, false},
---      tertiary_link   = {true, false, false}, -- same
---      unclassified    = {true, false, true},
---      residential     = {true, false, true}, -- same
---      living_street   = {true, true, false},
---      service         = {true, true, false}, -- same
---      track           = {true, true, false}, -- same
---    }
-
---    local w_bits = map[data.highway]
---    if w_bits then
---        result.forward_classes["w1"], result.forward_classes["w2"], result.forward_classes["w3"] = w_bits
---        result.backward_classes["w1"], result.backward_classes["w2"], result.backward_classes["w3"] = w_bits
---    end
 end
 
 -- reduce speed on bad surfaces
@@ -425,7 +438,7 @@ end
 
 -- maxspeed and advisory maxspeed
 function WayHandlers.maxspeed(profile,way,result,data)
-  local keys = Sequence { 'maxspeed:advisory', 'maxspeed' }
+  local keys = Sequence {  'maxspeed:advisory', 'maxspeed', 'source:maxspeed', 'maxspeed:type' }
   local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
   forward = WayHandlers.parse_maxspeed(forward,profile)
   backward = WayHandlers.parse_maxspeed(backward,profile)
@@ -437,18 +450,26 @@ function WayHandlers.maxspeed(profile,way,result,data)
   if backward and backward > 0 then
     result.backward_speed = profile.maxspeeds(way, backward)
   end
+
+  if way:get_value_by_key("junction") == "roundabout" then
+    result.forward_speed = forward / 2
+    if result.forward_speed > 30 or result.forward_speed <= 0 then
+      result.forward_speed = 30
+    end
+    result.backward_speed = backward / 2
+    if result.backward_speed > 30 or result.backward_speed <= 0 then
+      result.backward_speed = 30
+    end
+  end
 end
 
 function WayHandlers.parse_maxspeed(source,profile)
   if not source then
     return 0
   end
-  local n = tonumber(source:match("%d*"))
-  if n then
-    if string.match(source, "mph") or string.match(source, "mp/h") then
-      n = (n*1609)/1000
-    end
-  else
+
+  local n = Measure.get_max_speed(source)
+  if not n then
     -- parse maxspeed like FR:urban
     source = string.lower(source)
     n = profile.maxspeed_table[source]
@@ -463,37 +484,18 @@ function WayHandlers.parse_maxspeed(source,profile)
   return n
 end
 
-function WayHandlers.parse_length_unit(source)
-  if not source then
-    return
-  end
-  local n = tonumber(source:match("%d+%.?%d*"))
-  if n then
-    inches = source:match("'.*")
-    if inches then -- Imperial unit to metric
-      n = n * 12
-      local m = tonumber(inches:match("%d+"))
-      if m then
-        n = n + m
-      end
-      n = n * 2.54 / 100
-    end
-    return n
-  end
-end
-
 -- handle maxheight tags
 function WayHandlers.handle_height(profile,way,result,data)
   local keys = Sequence { 'maxheight:physical', 'maxheight' }
   local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
-  forward = Handlers.parse_length_unit(forward)
-  backward = Handlers.parse_length_unit(backward)
+  forward = Measure.get_max_height(forward,way)
+  backward = Measure.get_max_height(backward,way)
 
-  if forward and forward < profile.height then
+  if forward and forward < profile.vehicle_height then
     result.forward_mode = mode.inaccessible
   end
 
-  if backward and backward < profile.height then
+  if backward and backward < profile.vehicle_height then
     result.backward_mode = mode.inaccessible
   end
 end
@@ -504,37 +506,22 @@ function WayHandlers.handle_width(profile,way,result,data)
   local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
   local narrow = way:get_value_by_key('narrow')
 
-  if ((forward and forward == 'narrow') or (narrow and narrow == 'yes')) and profile.width > 2.2 then
+  if ((forward and forward == 'narrow') or (narrow and narrow == 'yes')) and profile.vehicle_width > 2.2 then
     result.forward_mode = mode.inaccessible
   elseif forward then
-    forward = Handlers.parse_length_unit(forward)
-    if forward and forward < profile.width then
+    forward = Measure.get_max_width(forward)
+    if forward and forward <= profile.vehicle_width then
       result.forward_mode = mode.inaccessible
     end
   end
 
-  if ((backward and backward == 'narrow') or (narrow and narrow == 'yes')) and profile.width > 2.2 then
+  if ((backward and backward == 'narrow') or (narrow and narrow == 'yes')) and profile.vehicle_width > 2.2 then
     result.backward_mode = mode.inaccessible
   elseif backward then
-    backward = Handlers.parse_length_unit(backward)
-    if backward and backward < profile.width then
+    backward = Measure.get_max_width(backward)
+    if backward and backward <= profile.vehicle_width then
       result.backward_mode = mode.inaccessible
     end
-  end
-end
-
-function WayHandlers.parse_weight_unit(source)
-  if not source then
-    return
-  end
-  local n = tonumber(source:match("%d*"))
-  if n then
-    if string.match(source, "lbs") then
-      n = n * 0.45359237 / 1000
-    elseif string.match(source, "kg") then
-      n = n / 1000
-    end
-    return n
   end
 end
 
@@ -542,30 +529,15 @@ end
 function WayHandlers.handle_weight(profile,way,result,data)
   local keys = Sequence { 'maxweight' }
   local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
-  forward = Handlers.parse_weight_unit(forward)
-  backward = Handlers.parse_weight_unit(backward)
+  forward = Measure.get_max_weight(forward)
+  backward = Measure.get_max_weight(backward)
 
-  local keys_conditional = Sequence { 'maxweight:conditional' }
-  local forward_conditional, backward_conditional = Tags.get_forward_backward_by_set(way,data,keys_conditional)
-
-  if forward and forward < profile.weight then
-    if forward_conditional and string.match(forward_conditional, 'no(ne)? ?@') and (string.match(forward_conditional, 'destination') or string.match(forward_conditional, 'delivery')) then
-      -- Discourage usage
-      result.forward_rate = math.max(1, math.min(result.forward_rate, (result.forward_speed * 0.7) / 3.6))
-    else
-      -- No legal access at any condition, set a large weight
-      result.forward_rate = math.max(1, math.min(result.forward_rate, (result.forward_speed * 0.2) / 3.6))
-    end
+  if forward and forward < profile.vehicle_weight then
+    result.forward_mode = mode.inaccessible
   end
 
-  if backward and backward < profile.weight then
-    if backward_conditional and string.match(backward_conditional, 'no(ne)? ?@') and (string.match(backward_conditional, 'destination') or string.match(backward_conditional, 'delivery')) then
-      -- Discourage usage
-      result.backward_rate = math.max(1, math.min(result.backward_rate, (result.backward_speed * 0.7) / 3.6))
-    else
-      -- No legal access at any condition, set a large weight
-      result.backward_rate = math.max(1, math.min(result.backward_rate, (result.backward_speed * 0.2) / 3.6))
-    end
+  if backward and backward < profile.vehicle_weight then
+    result.backward_mode = mode.inaccessible
   end
 end
 
@@ -573,49 +545,15 @@ end
 function WayHandlers.handle_length(profile,way,result,data)
   local keys = Sequence { 'maxlength' }
   local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
-  forward = Handlers.parse_length_unit(forward)
-  backward = Handlers.parse_length_unit(backward)
+  forward = Measure.get_max_length(forward)
+  backward = Measure.get_max_length(backward)
 
-  local keys_conditional = Sequence { 'maxlength:conditional' }
-  local forward_conditional, backward_conditional = Tags.get_forward_backward_by_set(way,data,keys_conditional)
-
-  if forward and forward < profile.length then
-    if forward_conditional and string.match(forward_conditional, 'no(ne)? ?@') and (string.match(forward_conditional, 'destination') or string.match(forward_conditional, 'delivery')) then
-      -- Discourage usage
-      result.forward_rate = math.min(result.forward_rate, (result.forward_speed * 0.7) / 3.6)
-    else
-      -- No legal access at any condition, set a large weight
-      result.forward_rate = math.min(result.forward_rate, (result.forward_speed * 0.2) / 3.6)
-    end
+  if forward and forward < profile.vehicle_length then
+    result.forward_mode = mode.inaccessible
   end
 
-  if backward and backward < profile.length then
-    if backward_conditional and string.match(backward_conditional, 'no(ne)? ?@') and (string.match(backward_conditional, 'destination') or string.match(backward_conditional, 'delivery')) then
-      -- Discourage usage
-      result.backward_rate = math.min(result.backward_rate, (result.backward_speed * 0.7) / 3.6)
-    else
-      -- No legal access at any condition, set a large weight
-      result.backward_rate = math.min(result.backward_rate, (result.backward_speed * 0.2) / 3.6)
-    end
-  end
-end
-
--- handle hgv access tags
-function WayHandlers.handle_hgv_access(profile,way,result,data)
-  local keys = Sequence { 'hgv', 'goods' }
-  local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
-
-  local keys_conditional = Sequence { 'hgv:conditional', 'goods:conditional' }
-  local forward_conditional, backward_conditional = Tags.get_forward_backward_by_set(way,data,keys_conditional)
-
-  if forward == 'no' and (not forward_conditional or not(string.match(forward_conditional, 'yes') or string.match(forward_conditional, 'destination') or string.match(forward_conditional, 'delivery'))) then
-    -- No legal access at any condition, set a large weight
-    result.forward_rate = math.min(result.forward_rate, (result.forward_speed * 0.1) / 3.6)
-  end
-
-  if backward == 'no' and (not backward_conditional or not(string.match(backward_conditional, 'yes') or string.match(backward_conditional, 'destination') or string.match(backward_conditional, 'delivery'))) then
-    -- No legal access at any condition, set a large weight
-    result.backward_rate = math.min(result.backward_rate, (result.backward_speed * 0.1) / 3.6)
+  if backward and backward < profile.vehicle_length then
+    result.backward_mode = mode.inaccessible
   end
 end
 
@@ -677,6 +615,15 @@ function WayHandlers.weights(profile,way,result,data)
     if (result.backward_mode ~= mode.inaccessible and result.backward_speed > 0) then
        result.backward_rate = 1
     end
+  end
+end
+
+
+-- handle general avoid rules
+
+function WayHandlers.avoid_ways(profile,way,result,data)
+  if profile.avoid[data.highway] then
+    return false
   end
 end
 
@@ -742,6 +689,22 @@ function WayHandlers.blocked_ways(profile,way,result,data)
   end
 end
 
+function WayHandlers.driving_side(profile, way, result, data)
+   local driving_side = way:get_value_by_key('driving_side')
+   if driving_side == nil then
+      driving_side = way:get_location_tag('driving_side')
+   end
+
+   if driving_side == 'left' then
+      result.is_left_hand_driving = true
+   elseif driving_side == 'right' then
+      result.is_left_hand_driving = false
+   else
+      result.is_left_hand_driving = profile.properties.left_hand_driving
+   end
+end
+
+
 -- Call a sequence of handlers, aborting in case a handler returns false. Example:
 --
 -- handlers = Sequence {
@@ -756,13 +719,13 @@ end
 -- WayHandlers.run(handlers,way,result,data,profile)
 --
 -- Each method in the list will be called on the WayHandlers object.
--- All handlers must accept the parameteres (profile,way,result,data) and return false
+-- All handlers must accept the parameteres (profile, way, result, data, relations) and return false
 -- if the handler chain should be aborted.
 -- To ensure the correct order of method calls, use a Sequence of handler names.
 
-function WayHandlers.run(profile,way,result,data,handlers)
+function WayHandlers.run(profile, way, result, data, handlers, relations)
   for i,handler in ipairs(handlers) do
-    if handler(profile,way,result,data) == false then
+    if handler(profile, way, result, data, relations) == false then
       return false
     end
   end
