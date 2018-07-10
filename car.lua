@@ -107,14 +107,15 @@ function setup()
     },
 
     classes = Sequence {
-        'toll', 'motorway', 'ferry', 'restricted'
+        'toll', 'motorway', 'track', 'w1', 'w2', 'w3'
     },
 
     -- classes to support for exclude flags
     excludable = Sequence {
         Set {'toll'},
         Set {'motorway'},
-        Set {'ferry'}
+        Set {'toll', 'motorway'},
+        Set {'track'},
     },
 
     avoid = Set {
