@@ -3,22 +3,22 @@ pprint=require('lib/pprint')
 local Mapotempo_classes = {}
 
 local highway_bits = Sequence {
-  trunk           = {false, false, false},
-  trunk_link      = {false, false, false}, -- same
-  primary         = {false, false, true},
-  primary_link    = {false, false, true}, -- same
-  secondary       = {false, true, false},
-  secondary_link  = {false, true, false}, -- same
-  tertiary        = {false, true, true},
-  tertiary_link   = {false, true, true}, -- same
+  trunk           = {true, true, true},
+  trunk_link      = {true, true, true}, -- same
+  primary         = {true, true, false},
+  primary_link    = {true, true, false}, -- same
+  secondary       = {true, false, true},
+  secondary_link  = {true, false, true}, -- same
+  tertiary        = {true, false, false},
+  tertiary_link   = {true, false, false}, -- same
 
-  unclassified    = {true, false, false},
-  residential     = {true, false, false}, -- same
-  living_street   = {true, false, true},
-  service         = {true, false, true}, -- same
-  track           = {true, false, true}, -- same
-  -- unassigned        = {true, true, false},
-  -- unassigned        = {true, true, true},
+  unclassified    = {false, true, true},
+  residential     = {false, true, true}, -- same
+  living_street   = {false, true, false},
+  service         = {false, true, false}, -- same
+  track           = {false, true, false}, -- same
+  -- unassigned        = {false, false, true},
+  -- unassignable      = {false, false, false},
 }
 
 -- add class information
