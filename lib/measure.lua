@@ -25,36 +25,6 @@ function Measure.parse_value_meters(value)
   end
 end
 
---- according to http://wiki.openstreetmap.org/wiki/Map_Features/Units#Explicit_specifications
-local tonns_parse_patterns = Sequence {
-  "%d+",
-  "%d+.%d+",
-  "%d+.%d+ ?t"
-}
-
-local kg_parse_patterns = Sequence {
-  "%d+ ?kg"
-}
-
---- Parse weight value in kilograms
-function Measure.parse_value_kilograms(value)
-  -- try to parse kilograms
-  for i, templ in ipairs(kg_parse_patterns) do
-    m = string.match(value, templ)
-    if m then
-      return tonumber(m)
-    end
-  end
-
-  -- try to parse tonns
-  for i, templ in ipairs(tonns_parse_patterns) do
-    m = string.match(value, templ)
-    if m then
-      return tonumber(m) * 1000
-    end
-  end
-end
-
 -- default maxheight value defined in https://wiki.openstreetmap.org/wiki/Key:maxheight#Non-numerical_values
 local default_maxheight = 4.5
 -- Available Non numerical values equal to 4.5; below_default and no_indications are not considered
@@ -82,13 +52,5 @@ function Measure.get_max_width(raw_value)
     return Measure.parse_value_meters(raw_value)
   end
 end
-
---- Get maxweight of specified way in kilogramms
-function Measure.get_max_weight(raw_value)
-  if raw_value then
-    return Measure.parse_value_kilograms(raw_value)
-  end
-end
-
 
 return Measure;
