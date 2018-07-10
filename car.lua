@@ -21,7 +21,7 @@ function setup()
   local use_left_hand_driving = false
   return {
     properties = {
-      max_speed_for_map_matching      = 180/3.6, -- 180kmph -> m/s
+      max_speed_for_map_matching      = 150/3.6, -- 180kmph -> m/s
       left_hand_driving               = use_left_hand_driving,
       -- For routing based on duration, but weighted for preferring certain roads
       weight_name                     = 'routability',
@@ -40,7 +40,7 @@ function setup()
     default_speed             = function(way) return Urban_density.default_speed(way) end, -- function
     oneway_handling           = true,
     side_road_multiplier      = 0.8,
-    turn_penalty              = 15,
+    turn_penalty              = 25,
     speed_reduction           = 0.8, -- Not Used
 
     -- Note: this biases right-side driving.
