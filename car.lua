@@ -30,7 +30,7 @@ function setup()
       -- For shortest distance without penalties for accessibility
       -- weight_name                     = 'distance',
       process_call_tagless_node      = false,
-      u_turn_penalty                 = 20,
+      u_turn_penalty                 = 30,
       continue_straight_at_waypoint  = true,
       use_turn_restrictions          = true,
       traffic_light_penalty          = 2,
@@ -40,7 +40,7 @@ function setup()
     default_speed             = function(way) return Urban_density.default_speed(way) end, -- function
     oneway_handling           = true,
     side_road_multiplier      = 0.8,
-    turn_penalty              = 7.5,
+    turn_penalty              = 15,
     speed_reduction           = 0.8, -- Not Used
 
     -- Note: this biases right-side driving.
