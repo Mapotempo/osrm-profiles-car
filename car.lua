@@ -125,7 +125,6 @@ function setup()
         Set {'toll'},
         Set {'motorway'},
         Set {'toll', 'motorway'},
-        Set {'track'},
     },
 
     avoid = Set {
