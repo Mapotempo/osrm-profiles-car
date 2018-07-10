@@ -44,6 +44,11 @@ local profile = {
   -- Should be inverted for left-driving countries.
   turn_bias   = properties.left_hand_driving and 1/1.075 or 1.075,
 
+  weight = 6, -- t
+  height = 2.8, -- m
+  width = 2.0, -- m
+  length = 6.0, -- m
+
   -- a list of suffixes to suppress in name change instructions
   suffix_list = {
     'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW', 'North', 'South', 'West', 'East'
@@ -130,6 +135,24 @@ local profile = {
   speeds = function (way) return speed_profile(speed_coef(way), way:get_value_by_key('highway')) end,
 
   maxspeeds = function (way, max_speed) return max_speed_coef(speed_coef(way), max_speed) end,
+
+  highway_penalties = {
+    motorway        = 1,
+    motorway_link   = 1,
+    trunk           = 1,
+    trunk_link      = 1,
+    primary         = 1,
+    primary_link    = 1,
+    secondary       = 1,
+    secondary_link  = 1,
+    tertiary        = 0.9,
+    tertiary_link   = 0.9,
+    unclassified    = 0.8,
+    residential     = 0.7,
+    living_street   = 0.3,
+    service         = 0.2,
+    track           = 0.1
+  },
 
   service_penalties = {
     alley             = 0.5,
@@ -582,6 +605,8 @@ function way_function(way, result)
     -- routable. this includes things like status=impassable,
     -- toll=yes and oneway=reversible
     'handle_blocked_ways',
+    'handle_height',
+    'handle_width',
 
     -- determine access status by checking our hierarchy of
     -- access tags, e.g: motorcar, motor_vehicle, vehicle
@@ -609,6 +634,11 @@ function way_function(way, result)
     'handle_surface',
     'handle_maxspeed',
     'handle_penalties',
+
+    -- set penalty to try to follow legal access restriction
+    'handle_weight',
+    'handle_length',
+    'handle_hgv_access',
 
     -- compute class labels
     'handle_classes',

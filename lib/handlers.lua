@@ -333,6 +333,12 @@ end
 function Handlers.handle_penalties(way,result,data,profile)
   -- heavily penalize a way tagged with all HOV lanes
   -- in order to only route over them if there is no other option
+  local highway_penalty = 1.0
+  local highway = way:get_value_by_key("highway")
+  if highway and profile.highway_penalties[highway] then
+    highway_penalty = profile.highway_penalties[highway]
+  end
+
   local service_penalty = 1.0
   local service = way:get_value_by_key("service")
   if service and profile.service_penalties[service] then
@@ -372,8 +378,8 @@ function Handlers.handle_penalties(way,result,data,profile)
     sideroad_penalty = profile.side_road_multiplier
   end
 
-  local forward_penalty = math.min(service_penalty, width_penalty, alternating_penalty, sideroad_penalty)
-  local backward_penalty = math.min(service_penalty, width_penalty, alternating_penalty, sideroad_penalty)
+  local forward_penalty = math.min(highway_penalty, service_penalty, width_penalty, alternating_penalty, sideroad_penalty)
+  local backward_penalty = math.min(highway_penalty, service_penalty, width_penalty, alternating_penalty, sideroad_penalty)
 
   if properties.weight_name == 'routability' then
     if result.forward_speed > 0 then
@@ -426,6 +432,162 @@ function Handlers.parse_maxspeed(source,profile)
     end
   end
   return n
+end
+
+function Handlers.parse_length_unit(source)
+  if not source then
+    return
+  end
+  local n = tonumber(source:match("%d*"))
+  if n then
+    inches = string.match(source, "'")
+    if inches then -- Imperial unit to metric
+      n = n * 12
+      local m = tonumber(inches:match("%d+\""))
+      if m then
+        n = n + m
+      end
+      n = n * 2.54 / 100
+    end
+    return n
+  end
+end
+
+-- handle maxheight tags
+function Handlers.handle_height(way,result,data,profile)
+  local keys = Sequence { 'maxheight:physical', 'maxheight' }
+  local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
+  forward = Handlers.parse_length_unit(forward)
+  backward = Handlers.parse_length_unit(backward)
+
+  if forward and forward < profile.height then
+    result.forward_mode = mode.inaccessible
+  end
+
+  if backward and backward < profile.height then
+    result.backward_mode = mode.inaccessible
+  end
+end
+
+-- handle maxwidth tags
+function Handlers.handle_width(way,result,data,profile)
+  local keys = Sequence { 'maxwidth:physical', 'maxwidth', 'width', 'est_width' }
+  local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
+  local narrow = way:get_value_by_key('narrow')
+
+  if ((forward and forward == 'narrow') or (narrow and narrow == 'yes')) and profile.width > 1.99 then
+    result.forward_mode = mode.inaccessible
+  elseif forward then
+    forward = Handlers.parse_length_unit(forward)
+    if forward and forward < profile.width then
+      result.forward_mode = mode.inaccessible
+    end
+  end
+
+  if ((backward and backward == 'narrow') or (narrow and narrow == 'yes')) and profile.width > 1.99 then
+    result.backward_mode = mode.inaccessible
+  elseif backward then
+    backward = Handlers.parse_length_unit(backward)
+    if backward and backward < profile.width then
+      result.backward_mode = mode.inaccessible
+    end
+  end
+end
+
+function Handlers.parse_weight_unit(source)
+  if not source then
+    return
+  end
+  local n = tonumber(source:match("%d*"))
+  if n then
+    if string.match(source, "lbs") then
+      n = n * 0.45359237 / 1000
+    elseif string.match(source, "kg") then
+      n = n / 1000
+    end
+    return n
+  end
+end
+
+-- handle maxweight tags
+function Handlers.handle_weight(way,result,data,profile)
+  local keys = Sequence { 'maxweight' }
+  local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
+  forward = Handlers.parse_weight_unit(forward)
+  backward = Handlers.parse_weight_unit(backward)
+
+  local keys_conditional = Sequence { 'maxweight:conditional' }
+  local forward_conditional, backward_conditional = Tags.get_forward_backward_by_set(way,data,keys_conditional)
+
+  if forward and forward < profile.weight then
+    if forward_conditional and string.match(forward_conditional, 'no(ne)? ?@') and (string.match(forward_conditional, 'destination') or string.match(forward_conditional, 'delivery')) then
+      -- Discourage usage
+      result.forward_rate = math.max(1, math.min(result.forward_rate, (result.forward_speed * 0.7) / 3.6))
+    else
+      -- No legal access at any condition, set a large weight
+      result.forward_rate = math.max(1, math.min(result.forward_rate, (result.forward_speed * 0.2) / 3.6))
+    end
+  end
+
+  if backward and backward < profile.weight then
+    if backward_conditional and string.match(backward_conditional, 'no(ne)? ?@') and (string.match(backward_conditional, 'destination') or string.match(backward_conditional, 'delivery')) then
+      -- Discourage usage
+      result.backward_rate = math.max(1, math.min(result.backward_rate, (result.backward_speed * 0.7) / 3.6))
+    else
+      -- No legal access at any condition, set a large weight
+      result.backward_rate = math.max(1, math.min(result.backward_rate, (result.backward_speed * 0.2) / 3.6))
+    end
+  end
+end
+
+-- handle maxlength tags
+function Handlers.handle_length(way,result,data,profile)
+  local keys = Sequence { 'maxlength' }
+  local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
+  forward = Handlers.parse_length_unit(forward)
+  backward = Handlers.parse_length_unit(backward)
+
+  local keys_conditional = Sequence { 'maxlength:conditional' }
+  local forward_conditional, backward_conditional = Tags.get_forward_backward_by_set(way,data,keys_conditional)
+
+  if forward and forward < profile.length then
+    if forward_conditional and string.match(forward_conditional, 'no(ne)? ?@') and (string.match(forward_conditional, 'destination') or string.match(forward_conditional, 'delivery')) then
+      -- Discourage usage
+      result.forward_rate = math.min(result.forward_rate, (result.forward_speed * 0.7) / 3.6)
+    else
+      -- No legal access at any condition, set a large weight
+      result.forward_rate = math.min(result.forward_rate, (result.forward_speed * 0.2) / 3.6)
+    end
+  end
+
+  if backward and backward < profile.length then
+    if backward_conditional and string.match(backward_conditional, 'no(ne)? ?@') and (string.match(backward_conditional, 'destination') or string.match(backward_conditional, 'delivery')) then
+      -- Discourage usage
+      result.backward_rate = math.min(result.backward_rate, (result.backward_speed * 0.7) / 3.6)
+    else
+      -- No legal access at any condition, set a large weight
+      result.backward_rate = math.min(result.backward_rate, (result.backward_speed * 0.2) / 3.6)
+    end
+  end
+end
+
+-- handle hgv access tags
+function Handlers.handle_hgv_access(way,result,data,profile)
+  local keys = Sequence { 'hgv', 'goods' }
+  local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
+
+  local keys_conditional = Sequence { 'hgv:conditional', 'goods:conditional' }
+  local forward_conditional, backward_conditional = Tags.get_forward_backward_by_set(way,data,keys_conditional)
+
+  if forward == 'no' and (not forward_conditional or not(string.match(forward_conditional, 'yes') or string.match(forward_conditional, 'destination') or string.match(forward_conditional, 'delivery'))) then
+    -- No legal access at any condition, set a large weight
+    result.forward_rate = math.min(result.forward_rate, (result.forward_speed * 0.1) / 3.6)
+  end
+
+  if backward == 'no' and (not backward_conditional or not(string.match(backward_conditional, 'yes') or string.match(backward_conditional, 'destination') or string.match(backward_conditional, 'delivery'))) then
+    -- No legal access at any condition, set a large weight
+    result.backward_rate = math.min(result.backward_rate, (result.backward_speed * 0.1) / 3.6)
+  end
 end
 
 -- handle oneways tags
