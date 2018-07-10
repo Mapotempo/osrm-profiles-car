@@ -159,6 +159,7 @@ function setup()
       'tertiary_link',
       'residential',
       'living_street',
+      'pedestrian',
       'track',
     },
 
