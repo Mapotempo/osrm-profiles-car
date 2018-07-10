@@ -290,24 +290,52 @@ function WayHandlers.classes(profile,way,result,data)
         result.backward_classes["toll"] = true
     end
 
-    if forward_route == "ferry" then
-        result.forward_classes["ferry"] = true
-    end
-    if backward_route == "ferry" then
-        result.backward_classes["ferry"] = true
-    end
+--    if forward_route == "ferry" then
+--        result.forward_classes["ferry"] = true
+--    end
+--    if backward_route == "ferry" then
+--        result.backward_classes["ferry"] = true
+--    end
 
-    if result.forward_restricted then
-        result.forward_classes["restricted"] = true
-    end
-    if result.backward_restricted then
-        result.backward_classes["restricted"] = true
-    end
+--    if result.forward_restricted then
+--        result.forward_classes["restricted"] = true
+--    end
+--    if result.backward_restricted then
+--        result.backward_classes["restricted"] = true
+--    end
 
     if data.highway == "motorway" or data.highway == "motorway_link" then
         result.forward_classes["motorway"] = true
         result.backward_classes["motorway"] = true
     end
+
+    if data.highway == "track" then
+        result.forward_classes["track"] = true
+        result.backward_classes["track"] = true
+    end
+
+--    local map = Sequence {
+--      motorway        = {false, false, false},
+--      motorway_link   = {false, false, false}, -- same
+--      trunk           = {false, false, true},
+--      trunk_link      = {false, false, true}, -- same
+--      primary         = {false, true, false},
+--      primary_link    = {false, true, false}, -- same
+--      secondary       = {false, true, true},
+--      tertiary        = {true, false, false},
+--      tertiary_link   = {true, false, false}, -- same
+--      unclassified    = {true, false, true},
+--      residential     = {true, false, true}, -- same
+--      living_street   = {true, true, false},
+--      service         = {true, true, false}, -- same
+--      track           = {true, true, false}, -- same
+--    }
+
+--    local w_bits = map[data.highway]
+--    if w_bits then
+--        result.forward_classes["w1"], result.forward_classes["w2"], result.forward_classes["w3"] = w_bits
+--        result.backward_classes["w1"], result.backward_classes["w2"], result.backward_classes["w3"] = w_bits
+--    end
 end
 
 -- reduce speed on bad surfaces
