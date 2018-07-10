@@ -23,7 +23,8 @@ function setup()
   Urban_density.assert_urban_database()
   return {
     properties = {
-      max_speed_for_map_matching      = 180/3.6, -- 180kmph -> m/s
+      max_speed_for_map_matching      = 150/3.6, -- 180kmph -> m/s
+      left_hand_driving               = use_left_hand_driving,
       -- For routing based on duration, but weighted for preferring certain roads
       weight_name                     = 'routability',
       -- For shortest duration without penalties for accessibility
@@ -42,7 +43,7 @@ function setup()
     default_speed             = function(way) return Urban_density.default_speed(way) end, -- function
     oneway_handling           = true,
     side_road_multiplier      = 0.8,
-    turn_penalty              = 15,
+    turn_penalty              = 25,
     speed_reduction           = 0.8, -- Not Used
     turn_bias                 = 1.075,
     cardinal_directions       = false,
