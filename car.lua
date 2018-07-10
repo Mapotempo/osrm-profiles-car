@@ -64,6 +64,8 @@ local profile = {
     'motor_vehicle',
     'vehicle',
     'permissive',
+    'private',
+    'pedestrian',
     'designated',
     'hov'
   },
@@ -75,8 +77,8 @@ local profile = {
     'emergency',
     'psv',
     'customers',
-    'private',
-    'delivery',
+--    'private',
+--    'delivery',
     'destination'
   },
 
@@ -137,7 +139,10 @@ local profile = {
       unclassified    = 25,
       residential     = 25,
       living_street   = 10,
-      service         = 15
+      road            = 20,
+      service         = 15,
+      pedestrian      = 5,
+      track           = 5
     }
   },
 
@@ -283,6 +288,41 @@ function get_restrictions(vector)
   end
 end
 
+-- Load white list of ferries
+local ferries_withlist_ids = {}
+local file = assert(io.open(debug.getinfo(1).source:sub(2):match("(.*/)") .. "ferries-withlist.csv"))
+if file then
+  for line in file:lines() do
+    if tonumber(line) then
+      ferries_withlist_ids[tonumber(line)] = true
+    end
+  end
+end
+
+function Handlers.ferries_withlist(way,result,data,profile)
+  if ferries_withlist_ids[way:id()] ~= nil then
+    return false
+  end
+end
+
+-- determine if this way can be used as a start/end point for routing
+function Handlers.startpoint_secure(way,result,data,profile)
+  local highway = way:get_value_by_key("highway")
+  local tunnel = way:get_value_by_key("tunnel")
+
+  if highway ~= "motorway" and (not tunnel or tunnel == "") then
+    Handlers.handle_startpoint(way,result,data,profile)
+  else
+    result.is_startpoint = false
+  end
+end
+
+function get_restrictions(vector)
+  for i,v in ipairs(profile.restrictions) do
+    vector:Add(v)
+  end
+end
+
 function node_function (node, result)
   -- parse access and barrier tags
   local access = find_access_tag(node, profile.access_tags_hierarchy)
@@ -360,6 +400,7 @@ function way_function(way, result)
     'handle_destinations',
 
     -- check whether we're using a special transport mode
+    'ferries_withlist',
     'handle_ferries',
     'handle_movables',
 
@@ -385,6 +426,7 @@ function way_function(way, result)
     -- handle various other flags
     'handle_roundabouts',
     'handle_startpoint',
+    'startpoint_secure',
 
     -- set name, ref and pronunciation
     'handle_names',
