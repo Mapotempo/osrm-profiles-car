@@ -11,9 +11,9 @@ speeds_interurban = {
   motorway_link   =  45,
   trunk           = 100,
   trunk_link      =  40,
-  primary         =  85,
+  primary         =  77,
   primary_link    =  30,
-  secondary       =  77,
+  secondary       =  73,
   secondary_link  =  25,
   tertiary        =  68,
   tertiary_link   =  20,
@@ -136,6 +136,7 @@ function Urban_density.speed_coef_sql(way)
   return speeds
 end
 
+-- return speed coef for all 4 landuses (interurban, waterbody, urban, urban_dense)
 function Urban_density.speed_coef(way)
   assert(way:version() ~= 0)
 

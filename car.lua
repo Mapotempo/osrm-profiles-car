@@ -3,26 +3,27 @@
 -- Define sql_conn and redis_conn
 require "profile-config"
 
-api_version = 2
+api_version = 4
 
 Set = require('lib/set')
 Sequence = require('lib/sequence')
 Handlers = require("lib/way_handlers")
+Relations = require("lib/relations")
 find_access_tag = require("lib/access").find_access_tag
 limit = require("lib/maxspeed").limit
+Utils = require("lib/utils")
+Measure = require("lib/measure")
 
 Urban_density = require('lib/urban_density')
 Ferries_withlist = require('lib/ferries_withlist')
-Mapotempo_classes = require('lib/mapotempo_classes')
+Mapotempo = require('lib/mapotempo')
 Startpoint_secure = require('lib/startpoint_secure')
 
 function setup()
   Urban_density.assert_urban_database()
-  local use_left_hand_driving = false
   return {
     properties = {
       max_speed_for_map_matching      = 180/3.6, -- 180kmph -> m/s
-      left_hand_driving               = use_left_hand_driving,
       -- For routing based on duration, but weighted for preferring certain roads
       --weight_name                     = 'routability',
       -- For shortest duration without penalties for accessibility
@@ -35,6 +36,7 @@ function setup()
       u_turn_penalty                 = 20,
       continue_straight_at_waypoint  = true,
       use_turn_restrictions          = true,
+      left_hand_driving              = false,
       traffic_light_penalty          = 2,
     },
 
@@ -44,14 +46,20 @@ function setup()
     side_road_multiplier      = 0.8,
     turn_penalty              = 7.5,
     speed_reduction           = 0.8, -- Not Used
+    turn_bias                 = 1.075,
+    cardinal_directions       = false,
 
-    -- Note: this biases right-side driving.
-    -- Should be inverted for left-driving countries.
-    turn_bias   = use_left_hand_driving and 1/1.075 or 1.075,
+    -- Size of the vehicle, to be limited by physical restriction of the way
+    vehicle_height = 2.5, -- in meters, 2.5m is the height of van
+    vehicle_width = 1.9, -- in meters, ways with narrow tag are considered narrower than 2.2m
 
-    -- a list of suffixes to suppress in name change instructions
+    -- Size of the vehicle, to be limited mostly by legal restriction of the way
+    vehicle_length = 4.8, -- in meters, 4.8m is the length of large or familly car
+    vehicle_weight = 3500, -- in kilograms
+
+    -- a list of suffixes to suppress in name change instructions. The suffixes also include common substrings of each other
     suffix_list = {
-      'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW', 'North', 'South', 'West', 'East'
+      'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW', 'North', 'South', 'West', 'East', 'Nor', 'Sou', 'We', 'Ea'
     },
 
     barrier_whitelist = Set {
@@ -62,7 +70,8 @@ function setup()
       'gate',
       'lift_gate',
       'no',
-      'entrance'
+      'entrance',
+      'height_restrictor'
     },
 
     access_tag_whitelist = Set {
@@ -85,6 +94,11 @@ function setup()
       'private',
 --      'delivery',
       'destination'
+    },
+
+    -- tags disallow access to in combination with highway=service
+    service_access_tag_blacklist = Set {
+        'private'
     },
 
     restricted_access_tag_list = Set {
@@ -113,7 +127,9 @@ function setup()
       'vehicle'
     },
 
+    -- change usage of some bits in classes, only to be able to return in API, could not be used internaly
     classes = Sequence {
+        -- 'toll', 'motorway', 'ferry', 'restricted', 'tunnel'
         'toll', 'motorway', 'track', 'w1', 'w2', 'w3', 'l1', 'l2'
     },
 
@@ -162,6 +178,8 @@ function setup()
       'tertiary_link',
       'residential',
       'living_street',
+      'unclassified',
+      'service',
       'pedestrian',
       'track',
     },
@@ -251,30 +269,54 @@ function setup()
 
     -- List only exceptions
     maxspeed_table = {
+      ["at:rural"] = 100,
+      ["at:trunk"] = 100,
+      ["be:motorway"] = 120,
+      ["be-vlg:rural"] = 70,
+      ["by:urban"] = 60,
+      ["by:motorway"] = 110,
       ["ch:rural"] = 80,
       ["ch:trunk"] = 100,
       ["ch:motorway"] = 120,
-      ["de:living_street"] = 7,
-      ["ru:living_street"] = 20,
-      ["ru:urban"] = 60,
-      ["ua:urban"] = 60,
-      ["at:rural"] = 100,
-      ["de:rural"] = 100,
-      ["at:trunk"] = 100,
       ["cz:trunk"] = 0,
-      ["ro:trunk"] = 100,
       ["cz:motorway"] = 0,
+      ["de:living_street"] = 7,
+      ["de:rural"] = 100,
       ["de:motorway"] = 0,
-      ["ru:motorway"] = 110,
+      ["dk:rural"] = 80,
+      ["fr:rural"] = 80,
       ["gb:nsl_single"] = (60*1609)/1000,
       ["gb:nsl_dual"] = (70*1609)/1000,
       ["gb:motorway"] = (70*1609)/1000,
+      ["nl:rural"] = 80,
+      ["nl:trunk"] = 100,
+      ['no:rural'] = 80,
+      ['no:motorway'] = 110,
+      ['pl:rural'] = 100,
+      ['pl:trunk'] = 120,
+      ['pl:motorway'] = 140,
+      ["ro:trunk"] = 100,
+      ["ru:living_street"] = 20,
+      ["ru:urban"] = 60,
+      ["ru:motorway"] = 110,
       ["uk:nsl_single"] = (60*1609)/1000,
       ["uk:nsl_dual"] = (70*1609)/1000,
       ["uk:motorway"] = (70*1609)/1000,
-      ["nl:rural"] = 80,
-      ["nl:trunk"] = 100,
+      ['za:urban'] = 60,
+      ['za:rural'] = 100,
       ["none"] = 140
+    },
+
+    relation_types = Sequence {
+      "route"
+    },
+
+    -- classify highway tags when necessary for turn weights
+    highway_turn_classification = {
+    },
+
+    -- classify access tags when necessary for turn weights
+    access_turn_classification = {
     }
   }
 end
@@ -282,7 +324,7 @@ end
 -- Load white list of ferries
 Ferries_withlist.load("ferries-withlist.csv")
 
-function process_node(profile, node, result)
+function process_node(profile, node, result, relations)
   -- parse access and barrier tags
   local access = find_access_tag(node, profile.access_tags_hierarchy)
   if access then
@@ -292,11 +334,18 @@ function process_node(profile, node, result)
   else
     local barrier = node:get_value_by_key("barrier")
     if barrier then
+      --  check height restriction barriers
+      local restricted_by_height = false
+      if barrier == 'height_restrictor' then
+         local maxheight = Measure.get_max_height(node:get_value_by_key("maxheight"), node)
+         restricted_by_height = maxheight and maxheight < profile.vehicle_height
+      end
+
       --  make an exception for rising bollard barriers
       local bollard = node:get_value_by_key("bollard")
       local rising_bollard = bollard and "rising" == bollard
 
-      if not profile.barrier_whitelist[barrier] and not rising_bollard then
+      if not profile.barrier_whitelist[barrier] and not rising_bollard or restricted_by_height then
         result.barrier = true
       end
     end
@@ -309,7 +358,7 @@ function process_node(profile, node, result)
   end
 end
 
-function process_way(profile, way, result)
+function process_way(profile, way, result, relations)
   -- the intial filtering of ways based on presence of tags
   -- affects processing times significantly, because all ways
   -- have to be checked.
@@ -347,6 +396,11 @@ function process_way(profile, way, result)
     -- routable. this includes things like status=impassable,
     -- toll=yes and oneway=reversible
     WayHandlers.blocked_ways,
+    WayHandlers.avoid_ways,
+    WayHandlers.handle_height,
+    WayHandlers.handle_width,
+    WayHandlers.handle_length,
+    WayHandlers.handle_weight,
 
     -- determine access status by checking our hierarchy of
     -- access tags, e.g: motorcar, motor_vehicle, vehicle
@@ -372,10 +426,14 @@ function process_way(profile, way, result)
     WayHandlers.speed,
     WayHandlers.surface,
     WayHandlers.maxspeed,
-    WayHandlers.penalties,
 
     -- compute class labels
-    Mapotempo_classes.classes,
+    WayHandlers.classes,
+    Mapotempo.classes,
+
+    -- set penalties after setting classes with urban density
+    Mapotempo.penalties,
+    WayHandlers.penalties,
 
     -- handle turn lanes and road classification, used for guidance
     WayHandlers.turn_lanes,
@@ -384,15 +442,23 @@ function process_way(profile, way, result)
     -- handle various other flags
     WayHandlers.roundabouts,
     Startpoint_secure.startpoint_secure,
+    WayHandlers.driving_side,
 
     -- set name, ref and pronunciation
     WayHandlers.names,
 
     -- set weight properties of the way
-    WayHandlers.weights
+    WayHandlers.weights,
+
+    -- set classification of ways relevant for turns
+    WayHandlers.way_classification_for_turn
   }
 
-  WayHandlers.run(profile,way,result,data,handlers)
+  WayHandlers.run(profile, way, result, data, handlers, relations)
+
+  if profile.cardinal_directions then
+      Relations.process_way_refs(way, relations, result)
+  end
 end
 
 function process_turn(profile, turn)
@@ -400,20 +466,20 @@ function process_turn(profile, turn)
   -- over the space of 0-180 degrees.  Values here were chosen by fitting
   -- the function to some turn penalty samples from real driving.
   local turn_penalty = profile.turn_penalty
-  local turn_bias = profile.turn_bias
+  local turn_bias = turn.is_left_hand_driving and 1. / profile.turn_bias or profile.turn_bias
 
   if turn.has_traffic_light then
       turn.duration = profile.properties.traffic_light_penalty
   end
 
-  if turn.turn_type ~= turn_type.no_turn then
+  if turn.number_of_roads > 2 or turn.source_mode ~= turn.target_mode or turn.is_u_turn then
     if turn.angle >= 0 then
       turn.duration = turn.duration + turn_penalty / (1 + math.exp( -((13 / turn_bias) *  turn.angle/180 - 6.5*turn_bias)))
     else
       turn.duration = turn.duration + turn_penalty / (1 + math.exp( -((13 * turn_bias) * -turn.angle/180 - 6.5/turn_bias)))
     end
 
-    if turn.direction_modifier == direction_modifier.u_turn then
+    if turn.is_u_turn then
       turn.duration = turn.duration + profile.properties.u_turn_penalty
     end
   end
