@@ -41,16 +41,21 @@ function Mapotempo_classes.classes(profile,way,result,data)
         result.backward_classes["toll"] = true
     end
 
-    if result.forward_restricted then
-        result.forward_classes["restricted"] = true
-    end
-    if result.backward_restricted then
-        result.backward_classes["restricted"] = true
-    end
+--    if result.forward_restricted then
+--        result.forward_classes["restricted"] = true
+--    end
+--    if result.backward_restricted then
+--        result.backward_classes["restricted"] = true
+--    end
 
     if data.highway == "motorway" or data.highway == "motorway_link" then
         result.forward_classes["motorway"] = true
         result.backward_classes["motorway"] = true
+    end
+
+    if data.highway == "track" then
+        result.forward_classes["track"] = true
+        result.backward_classes["track"] = true
     end
 
     local w_bits = highway_bits[data.highway]

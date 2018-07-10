@@ -55,7 +55,6 @@ function setup()
     barrier_whitelist = Set {
       'cattle_grid',
       'border_control',
-      'checkpoint',
       'toll_booth',
       'sally_port',
       'gate',
@@ -110,6 +109,18 @@ function setup()
       'motorcar',
       'motor_vehicle',
       'vehicle'
+    },
+
+    classes = Sequence {
+        'toll', 'motorway', 'track', 'w1', 'w2', 'w3'
+    },
+
+    -- classes to support for exclude flags
+    excludable = Sequence {
+        Set {'toll'},
+        Set {'motorway'},
+        Set {'toll', 'motorway'},
+        Set {'track'},
     },
 
     avoid = Set {
