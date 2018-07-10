@@ -375,13 +375,13 @@ function WayHandlers.penalties(profile,way,result,data)
 
   local speed_forward_penality = 1.0
   local speed_backward_penality = 1.0
-  if properties.weight_name == 'distance-routability' then
+  if profile.properties.weight_name == 'distance-routability' then
     if result.forward_speed < 130 then
-      speed_forward_penality = result.forward_speed / 130 * 0.4 + 0.6
+      speed_forward_penality = result.forward_speed / 130 * 0.5 + 0.5
     end
 
     if result.backward_speed < 130 then
-      speed_backward_penality = result.backward_speed / 130 * 0.4 + 0.6
+      speed_backward_penality = result.backward_speed / 130 * 0.5 + 0.5
     end
   end
 
