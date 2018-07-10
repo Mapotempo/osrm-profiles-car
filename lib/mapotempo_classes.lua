@@ -1,4 +1,5 @@
 pprint=require('lib/pprint')
+Urban_density = require('lib/urban_density')
 
 local Mapotempo_classes = {}
 
@@ -19,6 +20,13 @@ local highway_bits = Sequence {
   track           = {true, false, true}, -- same
   -- unassigned        = {true, true, false},
   -- unassigned        = {true, true, true},
+}
+
+local landuse_bits = {
+    {false, false}, -- 1, interurban
+    {false, true}, -- 2, water_body
+    {true, false}, -- 3, urban
+    {true, true}, -- 4, urban_dense
 }
 
 -- add class information
@@ -50,6 +58,18 @@ function Mapotempo_classes.classes(profile,way,result,data)
         result.forward_classes["w1"], result.forward_classes["w2"], result.forward_classes["w3"] = unpack(w_bits)
         result.backward_classes["w1"], result.backward_classes["w2"], result.backward_classes["w3"] = unpack(w_bits)
     end
+
+    -- FIXME duplicate call to speed_coef ----------------------------------------------------------------------------
+    local coef = Urban_density.speed_coef(way)
+    local max_index = 1
+    for k in pairs(coef) do
+        if coef[k] > coef[max_index] then
+            max_index = k
+        end
+    end
+
+    result.forward_classes["l1"], result.forward_classes["l2"] = unpack(landuse_bits[max_index])
+    result.backward_classes["l1"], result.backward_classes["l2"] = unpack(landuse_bits[max_index])
 end
 
 return Mapotempo_classes
