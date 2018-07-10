@@ -66,25 +66,6 @@ speeds_urban_dense = {
   default         =  8
 }
 
-urban_query_ = [[
-SELECT
-  code AS code,
-  SUM(l) / ST_Length((SELECT linestring FROM ways where id = %s)) AS l
-FROM (
-  SELECT
-    code,
-    ST_Length(ST_Intersection(geom, (SELECT linestring FROM ways where id = '%s'))) AS l
-  FROM
-    urban
-  WHERE
-    geom && (SELECT linestring FROM ways where id = %s) AND
-    ST_Intersects(geom, (SELECT linestring FROM ways where id = %s))
-) AS t
-GROUP BY
-  code
-;
-]]
-
 urban_query = [[
 SELECT
   code AS code,
