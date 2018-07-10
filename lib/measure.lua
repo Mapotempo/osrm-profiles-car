@@ -26,19 +26,19 @@ function Measure.parse_value_meters(value)
   end
 end
 
---- Parse weight value in kilograms
+--- Parse weight value in kilograms.
+--- according to https://wiki.openstreetmap.org/wiki/Key:maxweight
 function Measure.parse_value_kilograms(value)
-  if not value then
-    return
-  end
-  local n = tonumber(value:match("%d*"))
+  local n = tonumber(value:gsub(",", "."):match("%d+%.?%d*"))
   if n then
     if string.match(value, "lbs") then
       n = n * pound_to_kilograms
     elseif string.match(value, "kg") then
-      n = n
+      -- n = n
+    else -- Default, metric tons
+      n = n * 1000
     end
-    return n * 1000
+    return n
   end
 end
 
