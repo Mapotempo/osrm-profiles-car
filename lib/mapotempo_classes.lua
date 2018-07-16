@@ -1,4 +1,3 @@
-pprint=require('lib/pprint')
 Urban_density = require('lib/urban_density')
 
 local Mapotempo_classes = {}
@@ -32,7 +31,6 @@ local landuse_bits = {
 -- add class information
 function Mapotempo_classes.classes(profile,way,result,data)
     local forward_toll, backward_toll = Tags.get_forward_backward_by_key(way, data, "toll")
-    local forward_route, backward_route = Tags.get_forward_backward_by_key(way, data, "route")
 
     if forward_toll == "yes" then
         result.forward_classes["toll"] = true
