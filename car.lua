@@ -430,6 +430,7 @@ function process_way(profile, way, result, relations)
     WayHandlers.penalties,
 
     -- compute class labels
+    WayHandlers.classes,
     Mapotempo_classes.classes,
 
     -- handle turn lanes and road classification, used for guidance
