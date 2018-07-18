@@ -273,6 +273,7 @@ function setup()
       ["ch:motorway"] = 120,
       ["cz:trunk"] = 0,
       ["cz:motorway"] = 0,
+      ["fr:rural"] = 80,
       ["de:living_street"] = 7,
       ["de:rural"] = 100,
       ["de:motorway"] = 0,
@@ -419,6 +420,7 @@ function process_way(profile, way, result, relations)
     WayHandlers.penalties,
 
     -- compute class labels
+    WayHandlers.classes,
     Mapotempo_classes.classes,
 
     -- handle turn lanes and road classification, used for guidance
