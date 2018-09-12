@@ -595,6 +595,21 @@ function WayHandlers.handle_hgv_access(profile,way,result,data)
   if backward == 'no' and (not backward_conditional or not(string.match(backward_conditional, 'yes') or string.match(backward_conditional, 'destination') or string.match(backward_conditional, 'delivery'))) then
     -- No legal access at any condition, set a large weight
     result.backward_rate = math.min(result.backward_rate, (result.backward_speed * 0.1) / 3.6)
+end
+
+-- handle maxlength tags
+function WayHandlers.handle_length(profile,way,result,data)
+  local keys = Sequence { 'maxlength' }
+  local forward, backward = Tags.get_forward_backward_by_set(way,data,keys)
+  forward = Measure.get_max_length(forward)
+  backward = Measure.get_max_length(backward)
+
+  if forward and forward < profile.vehicle_length then
+    result.forward_mode = mode.inaccessible
+  end
+
+  if backward and backward < profile.vehicle_length then
+    result.backward_mode = mode.inaccessible
   end
 end
 
