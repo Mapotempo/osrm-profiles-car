@@ -136,6 +136,7 @@ function Urban_density.speed_coef_sql(way)
   return speeds
 end
 
+-- return speed coef for all 4 landuses (interurban, waterbody, urban, urban_dense)
 function Urban_density.speed_coef(way)
   assert(way:version() ~= 0)
 
