@@ -68,10 +68,12 @@ function Mapotempo.penalties(profile,way,result,data)
 
   -- decrease speed only some way types (unclassified, residential, living_street)
   if width <= 3 or (lanes <= 1 and is_bidirectional) then
-    if (result.forward_classes["w1"] == false and result.forward_classes["w2"] == true and result.forward_classes["w3"] == true) then
+    if result.forward_classes["l1"] == false and result.forward_classes["l2"] == false and
+      (result.forward_classes["w1"] == false and result.forward_classes["w2"] == true and result.forward_classes["w3"] == true) then
       result.forward_speed = result.forward_speed / 2
     end
-    if (result.backward_classes["w1"] == false and result.backward_classes["w2"] == true and result.backward_classes["w3"] == true) then
+    if result.backward_classes["l1"] == false and result.backward_classes["l2"] == false and
+      (result.backward_classes["w1"] == false and result.backward_classes["w2"] == true and result.backward_classes["w3"] == true) then
       result.backward_speed = result.backward_speed / 2
     end
   end
