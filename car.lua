@@ -426,7 +426,6 @@ function process_way(profile, way, result, relations)
     WayHandlers.speed,
     WayHandlers.surface,
     WayHandlers.maxspeed,
-    WayHandlers.penalties,
 
     -- compute class labels
     WayHandlers.classes,
@@ -434,6 +433,7 @@ function process_way(profile, way, result, relations)
 
     -- set penalties after setting classes with urban density
     Mapotempo.penalties,
+    WayHandlers.penalties,
 
     -- handle turn lanes and road classification, used for guidance
     WayHandlers.turn_lanes,
