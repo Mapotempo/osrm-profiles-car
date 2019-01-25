@@ -418,12 +418,11 @@ function WayHandlers.penalties(profile,way,result,data)
   local speed_backward_penality = 1.0
   if profile.properties.weight_name == 'distance-routability' then
     if result.forward_speed < 130 then
-      -- speed_forward_penality = result.forward_speed / 130 * 0.5 + 0.5
-      speed_forward_penality = math.sqrt(1-math.pow(result.forward_speed-130, 2)/math.pow(130, 2) * 0.25) + 0.5
+      speed_forward_penality = math.sqrt((1-math.pow(result.forward_speed-130, 2)/math.pow(130, 2)) * 0.25) + 0.5
     end
 
     if result.backward_speed < 130 then
-      speed_backward_penality = math.sqrt(1-math.pow(result.backward_speed-130, 2)/math.pow(130, 2) * 0.25) + 0.5
+      speed_backward_penality = math.sqrt((1-math.pow(result.backward_speed-130, 2)/math.pow(130, 2)) * 0.25) + 0.5
     end
   end
 
