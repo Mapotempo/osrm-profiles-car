@@ -414,43 +414,39 @@ function WayHandlers.penalties(profile,way,result,data)
     sideroad_penalty = profile.side_road_multiplier
   end
 
-  local speed_forward_penality = 1.0
-  local speed_backward_penality = 1.0
-  if profile.properties.weight_name == 'distance-routability' then
-    if result.forward_speed < 130 then
-      speed_forward_penality = math.sqrt((1-math.pow(result.forward_speed-130, 2)/math.pow(130, 2)) * 0.25) + 0.5
-    end
+  local forward_penalty = math.min(service_penalty, width_penalty, alternating_penalty, sideroad_penalty)
+  local backward_penalty = math.min(service_penalty, width_penalty, alternating_penalty, sideroad_penalty)
 
-    if result.backward_speed < 130 then
-      speed_backward_penality = math.sqrt((1-math.pow(result.backward_speed-130, 2)/math.pow(130, 2)) * 0.25) + 0.5
-    end
-  end
+  -- If you set the same rate on all ways, the result will be shortest path routing.
+  -- If you set rate = speed on all ways, the result will be fastest path routing.
+  -- If you want to prioritize certain streets, increase the rate on these.
 
-  local forward_penalty = math.min(service_penalty, width_penalty, alternating_penalty, sideroad_penalty, speed_forward_penality)
-  local backward_penalty = math.min(service_penalty, width_penalty, alternating_penalty, sideroad_penalty, speed_backward_penality)
-
+  -- The weight of a way is normally computed as length / rate.
   if profile.properties.weight_name == 'routability' then
+    -- Routing will prefer ways with height rate.
     if result.forward_speed > 0 then
       result.forward_rate = (result.forward_speed * forward_penalty) / 3.6
     end
     if result.backward_speed > 0 then
       result.backward_rate = (result.backward_speed * backward_penalty) / 3.6
     end
+    -- Routing will prefer ways with low weight.
     if result.duration > 0 then
       result.weight = result.duration / forward_penalty
     end
   end
 
+  -- The weight of a way is normally computed as length / rate.
   if profile.properties.weight_name == 'distance-routability' then
-    if result.forward_speed > 0 then
-      result.forward_rate = forward_penalty
+    -- Routing will prefer ways with height rate.
+    if result.forward_speed > 0 and result.forward_speed < 130 then
+      result.forward_rate = math.sqrt((1-math.pow(result.forward_speed-130, 8)/math.pow(130, 8)))
     end
-    if result.backward_speed > 0 then
-      result.backward_rate = backward_penalty
+    if result.backward_speed > 0 and result.backward_speed < 130 then
+      result.backward_rate = math.sqrt((1-math.pow(result.backward_speed-130, 8)/math.pow(130, 8)))
     end
-    if result.duration > 0 then
-      result.weight = result.duration / forward_penalty
-    end
+    -- Routing will prefer ways with low weight.
+    -- result.weight = ...
   end
 end
 
