@@ -1,5 +1,8 @@
 -- Car profile
 
+-- Define sql_conn and redis_conn
+require "profile-config"
+
 api_version = 4
 
 Set = require('lib/set')
@@ -11,11 +14,13 @@ limit = require("lib/maxspeed").limit
 Utils = require("lib/utils")
 Measure = require("lib/measure")
 
+Urban_density = require('lib/urban_density')
 Ferries_withlist = require('lib/ferries_withlist')
-Mapotempo_classes = require('lib/mapotempo_classes')
+Mapotempo = require('lib/mapotempo')
 Startpoint_secure = require('lib/startpoint_secure')
 
 function setup()
+  Urban_density.assert_urban_database()
   return {
     properties = {
       max_speed_for_map_matching      = 180/3.6, -- 180kmph -> m/s
@@ -34,11 +39,11 @@ function setup()
     },
 
     default_mode              = mode.driving,
-    default_speed             = 10,
+    default_speed             = function(way) return Urban_density.default_speed(way) end, -- function
     oneway_handling           = true,
     side_road_multiplier      = 0.8,
     turn_penalty              = 7.5,
-    speed_reduction           = 0.8,
+    speed_reduction           = 0.8, -- Not Used
     turn_bias                 = 1.075,
     cardinal_directions       = false,
 
@@ -120,8 +125,10 @@ function setup()
       'vehicle'
     },
 
+    -- change usage of some bits in classes, only to be able to return in API, could not be used internaly
     classes = Sequence {
-        'toll', 'motorway', 'track', 'w1', 'w2', 'w3'
+        -- 'toll', 'motorway', 'ferry', 'restricted', 'tunnel'
+        'toll', 'motorway', 'track', 'w1', 'w2', 'w3', 'l1', 'l2'
     },
 
     -- classes to support for exclude flags
@@ -143,27 +150,9 @@ function setup()
       'proposed'
     },
 
-    speeds = Sequence {
-      highway = {
-        motorway        = 90,
-        motorway_link   = 45,
-        trunk           = 85,
-        trunk_link      = 40,
-        primary         = 65,
-        primary_link    = 30,
-        secondary       = 55,
-        secondary_link  = 25,
-        tertiary        = 40,
-        tertiary_link   = 20,
-        unclassified    = 25,
-        residential     = 25,
-        living_street   = 10,
-        road            = 20,
-        service         = 15,
-        pedestrian      = 5,
-        track           = 5
-      }
-    },
+    speeds = function(way) return Urban_density.speeds(way) end, -- function
+
+    maxspeeds = function(way, max_speed) return Urban_density.maxspeeds(way, max_speed) end, -- function
 
     service_penalties = {
       alley             = 0.5,
@@ -281,6 +270,7 @@ function setup()
       ["at:rural"] = 100,
       ["at:trunk"] = 100,
       ["be:motorway"] = 120,
+      ["be-vlg:rural"] = 70,
       ["by:urban"] = 60,
       ["by:motorway"] = 110,
       ["ch:rural"] = 80,
@@ -434,11 +424,14 @@ function process_way(profile, way, result, relations)
     WayHandlers.speed,
     WayHandlers.surface,
     WayHandlers.maxspeed,
-    WayHandlers.penalties,
 
     -- compute class labels
     WayHandlers.classes,
-    Mapotempo_classes.classes,
+    Mapotempo.classes,
+
+    -- set penalties after setting classes with urban density
+    Mapotempo.penalties,
+    WayHandlers.penalties,
 
     -- handle turn lanes and road classification, used for guidance
     WayHandlers.turn_lanes,
