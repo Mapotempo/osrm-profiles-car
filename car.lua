@@ -12,7 +12,7 @@ Utils = require("lib/utils")
 Measure = require("lib/measure")
 
 Ferries_withlist = require('lib/ferries_withlist')
-Mapotempo_classes = require('lib/mapotempo_classes')
+Mapotempo = require('lib/mapotempo')
 Startpoint_secure = require('lib/startpoint_secure')
 
 function setup()
@@ -280,6 +280,7 @@ function setup()
       ["at:rural"] = 100,
       ["at:trunk"] = 100,
       ["be:motorway"] = 120,
+      ["be-vlg:rural"] = 70,
       ["by:urban"] = 60,
       ["by:motorway"] = 110,
       ["ch:rural"] = 80,
@@ -433,11 +434,14 @@ function process_way(profile, way, result, relations)
     WayHandlers.speed,
     WayHandlers.surface,
     WayHandlers.maxspeed,
-    WayHandlers.penalties,
 
     -- compute class labels
     WayHandlers.classes,
-    Mapotempo_classes.classes,
+    Mapotempo.classes,
+
+    -- set penalties after setting classes with urban density
+    Mapotempo.penalties,
+    WayHandlers.penalties,
 
     -- handle turn lanes and road classification, used for guidance
     WayHandlers.turn_lanes,
