@@ -18,7 +18,7 @@ Based on [OSRM](https://github.com/Project-OSRM/osrm-backend/) car profiles.
 
 `car-distance` branch follows `car` but for smart-shortest routing.
 
-`truck_medium` branch follows `car` but for small truck.
+`truck-medium` branch follows `car` but for small truck.
 
 
 ```
@@ -28,7 +28,7 @@ master - OSRM-Car
     │   └── car-urban
     └── car
         ├── car-distance
-        └── truck_medium
+        └── truck-medium
 ```
 
 ## Features
