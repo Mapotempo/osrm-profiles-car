@@ -437,12 +437,15 @@ function WayHandlers.maxspeed(profile,way,result,data)
   forward = WayHandlers.parse_maxspeed(forward,profile)
   backward = WayHandlers.parse_maxspeed(backward,profile)
 
-  if forward and forward > 0 then
-    result.forward_speed = forward * profile.speed_reduction
-  end
-
-  if backward and backward > 0 then
-    result.backward_speed = backward * profile.speed_reduction
+  if way:get_value_by_key("junction") == "roundabout" then
+    result.forward_speed = forward / 2
+    if result.forward_speed > 30 or result.forward_speed <= 0 then
+      result.forward_speed = 30
+    end
+    result.backward_speed = backward / 2
+    if result.backward_speed > 30 or result.backward_speed <= 0 then
+      result.backward_speed = 30
+    end
   end
 end
 
