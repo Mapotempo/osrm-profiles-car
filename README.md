@@ -16,6 +16,8 @@ Based on [OSRM](https://github.com/Project-OSRM/osrm-backend/) car profiles.
 
 `car` branch follows `mapotempo`, auto adjust speed based on land use.
 
+`car-lcv` branch follows `car` but for light-commercial-vehicles routing.
+
 `car-distance` branch follows `car` but for smart-shortest routing.
 
 `truck-medium` branch follows `car` but for small truck.
@@ -28,7 +30,8 @@ master - OSRM-Car
     │   └── car-urban
     └── car
         ├── car-distance
-        └── truck-medium
+        ├── truck-medium
+        └── car-lcv
 ```
 
 ## Features
